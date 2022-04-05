@@ -73,10 +73,9 @@ buildtime/%.ts:: ${all_deps} Dockerfile
 	${BUILDX} \
 		--tag ${IMAGE_PREFIX}arcade-token-machine-$(patsubst %-ma.ts,%,$(@F)):latest \
 		--tag ${IMAGE_PREFIX}arcade-token-machine-$(patsubst %-ma.ts,%,$(@F)):v${now} \
-		--target $(patsubst %-ma.ts,%,$(@F))-image \
+		--target $(patsubst %.ts,%,$(@F))-image \
 		--build-arg GIT_HASH=${GIT_HASH} \
 		--build-arg GIT_BRANCH=${GIT_BRANCH} \
-		-f Dockerfile.multi \
 		--push .
 	@touch $@
 
