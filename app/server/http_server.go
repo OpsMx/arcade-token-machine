@@ -44,7 +44,7 @@ func (*srv) tokenRequest() http.HandlerFunc {
 			http.Error(w, "provider must be 'multipass'", http.StatusUnprocessableEntity)
 			return
 		}
-		providerContext := queries.Get("context")
+		providerContext := queries.Get("providerContext")
 		// Get an actual token, for now...  echo the ENVAR...
 		var ret struct {
 			Token    string
