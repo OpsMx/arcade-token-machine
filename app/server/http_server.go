@@ -38,11 +38,25 @@ type srv struct {
 func (*srv) tokenRequest() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		// TODO: implement actual responses
-		ret := false
+		provider := mux.Vars(req)["provider"]
+		if provider != "multipass" {
+			http.Error(w, "provider must be 'multipass'", http.StatusUnprocessableEntity)
+			return
+		}
+		providerContext := mux.Vars(req)["context"]
+		// Get an actual token, for now...  echo the ENVAR...
+		var ret struct {
+			Token    string
+			Context  string
+			Provider string
+		}
+		ret.Token = getEnvar("KUBERNETES_TOKEN", "KUBERNETES_TOKEN-envar-not-set")
+		ret.Context = providerContext
+		ret.Provider = provider
+
 		json, err := json.Marshal(ret)
 		if err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -56,7 +70,9 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func (s *srv) routes(r *mux.Router) {
 	// internal handlers
-	r.HandleFunc("/tokens", s.tokenRequest()).Methods(http.MethodGet)
+	r.HandleFunc("/tokens", s.tokenRequest()).
+		Methods(http.MethodGet).
+		Queries("provider", "{provider}", "context", "{context}")
 }
 
 func runHTTPServer(ctx context.Context, listenPort uint16, healthchecker *health.Health) {
