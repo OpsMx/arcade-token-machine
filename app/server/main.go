@@ -1,7 +1,104 @@
+/*
+ * Copyright 2022 OpsMx, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License")
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package main
 
-import "fmt"
+import (
+	"context"
+	"flag"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/skandragon/gohealthcheck/health"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+)
+
+const port uint16 = 1982
+
+var (
+	configFile = flag.String("configFile", "/app/config/stormdriver.yaml", "Configuration file location")
+
+	// eg, http://localhost:14268/api/traces
+	jaegerEndpoint = flag.String("jaeger-endpoint", "", "Jaeger collector endpoint")
+
+	healthchecker = health.MakeHealth()
+	tracer        trace.Tracer
+)
+
+func getEnvar(name string, defaultValue string) string {
+	value, found := os.LookupEnv(name)
+	if !found {
+		return defaultValue
+	}
+	return value
+}
+
+func gitBranch() string {
+	return getEnvar("GIT_BRANCH", "dev")
+}
+
+func gitHash() string {
+	return getEnvar("GIT_HASH", "dev")
+}
+
+func showGitInfo() {
+	log.Printf("GIT Version: %s @ %s", gitBranch(), gitHash())
+}
 
 func main() {
-	fmt.Printf("Hello, world!")
+	showGitInfo()
+
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGTERM, syscall.SIGINT)
+
+	flag.Parse()
+	if len(*jaegerEndpoint) == 0 {
+		*jaegerEndpoint = getEnvar("JAEGER_TRACE_URL", "")
+	}
+
+	tracerProvider, err := newTracerProvider(*jaegerEndpoint, gitHash())
+	if err != nil {
+		log.Fatal(err)
+	}
+	otel.SetTracerProvider(tracerProvider)
+	tracer = tracerProvider.Tracer("main")
+
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	defer func(ctx context.Context) {
+		ctx, cancel = context.WithTimeout(ctx, time.Second*5)
+		defer cancel()
+		if err := tracerProvider.Shutdown(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}(ctx)
+
+	go healthchecker.RunCheckers(15)
+
+	log.Printf("Listening for HTTP requests on port %d", port)
+	go runHTTPServer(ctx, port, healthchecker)
+
+	<-sigchan
+	log.Printf("Exiting Cleanly")
 }
