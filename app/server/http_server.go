@@ -38,12 +38,13 @@ type srv struct {
 func (*srv) tokenRequest() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")
-		provider := mux.Vars(req)["provider"]
+		queries := req.URL.Query()
+		provider := queries.Get("provider")
 		if provider != "multipass" {
 			http.Error(w, "provider must be 'multipass'", http.StatusUnprocessableEntity)
 			return
 		}
-		providerContext := mux.Vars(req)["context"]
+		providerContext := queries.Get("context")
 		// Get an actual token, for now...  echo the ENVAR...
 		var ret struct {
 			Token    string
@@ -74,12 +75,12 @@ func runHTTPServer(ctx context.Context, listenPort uint16, healthchecker *health
 	}
 
 	r := mux.NewRouter()
-	// added first because order matters.
+
+	// Order matters.
 	r.HandleFunc("/health", healthchecker.HTTPHandler()).Methods(http.MethodGet)
 
 	r.HandleFunc("/tokens", s.tokenRequest()).
-		Methods(http.MethodGet).
-		Queries("provider", "{provider}", "context", "{context}")
+		Methods(http.MethodGet)
 
 	r.Use(loggingMiddleware)
 	r.Use(otelmux.Middleware("arcade-multipass"))
