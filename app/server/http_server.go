@@ -18,12 +18,12 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -68,13 +68,6 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	return handlers.LoggingHandler(os.Stdout, next)
 }
 
-func (s *srv) routes(r *mux.Router) {
-	// internal handlers
-	r.HandleFunc("/tokens", s.tokenRequest()).
-		Methods(http.MethodGet).
-		Queries("provider", "{provider}", "context", "{context}")
-}
-
 func runHTTPServer(ctx context.Context, listenPort uint16, healthchecker *health.Health) {
 	s := &srv{
 		listenPort: listenPort,
@@ -83,16 +76,20 @@ func runHTTPServer(ctx context.Context, listenPort uint16, healthchecker *health
 	r := mux.NewRouter()
 	// added first because order matters.
 	r.HandleFunc("/health", healthchecker.HTTPHandler()).Methods(http.MethodGet)
-	s.routes(r)
+
+	r.HandleFunc("/tokens", s.tokenRequest()).
+		Methods(http.MethodGet).
+		Queries("provider", "{provider}", "context", "{context}")
 
 	r.Use(loggingMiddleware)
 	r.Use(otelmux.Middleware("arcade-multipass"))
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.listenPort),
-		Handler: r,
-		// Disable HTTP/2.
-		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler)),
+		Addr:         fmt.Sprintf(":%d", s.listenPort),
+		Handler:      r,
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
+		IdleTimeout:  time.Second * 60,
 	}
 	log.Fatal(srv.ListenAndServe())
 }
