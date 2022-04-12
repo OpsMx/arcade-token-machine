@@ -48,7 +48,7 @@ func LoadConfig(configPath string) (*Config, error) {
 	}
 
 	if config.CheckIntervalMinutes <= 0 {
-		config.CheckIntervalMinutes = 600
+		config.CheckIntervalMinutes = 10
 	}
 
 	return &config, nil
