@@ -159,10 +159,8 @@ func (th *TokenHandler) updater() {
 		case update := <-th.updateChan:
 			switch update.action {
 			case "delete":
-				log.Printf("TokenHandler: delete token %s", update.name)
 				delete(th.tokens, update.name)
 			case "update":
-				log.Printf("TokenHandler: Add token %s", update.name)
 				th.tokens[update.name] = update.token
 			default:
 				log.Printf("TokenUpdater: unknown action %s, ignoring", update.action)

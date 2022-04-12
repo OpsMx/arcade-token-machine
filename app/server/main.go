@@ -44,6 +44,7 @@ var (
 	tracer        trace.Tracer
 	tokenHandler  *TokenHandler
 	config        *Config
+	quitRefresher = make(chan bool)
 )
 
 func getEnvar(name string, defaultValue string) string {
@@ -106,8 +107,6 @@ func main() {
 		log.Fatalf("Unable to load config: %v", err)
 	}
 
-	log.Printf("Config: %#v", config)
-
 	log.Printf("Starting TokenHandler")
 	tokenHandler = MakeTokenHandler()
 	err = tokenHandler.Start()
@@ -120,14 +119,47 @@ func main() {
 		log.Fatalf("Unable to configure TokenHandler: %v", err)
 	}
 
+	log.Printf("Starting config and token refresher")
+	go startRefresher(*configFile, time.Duration(config.CheckIntervalMinutes)*time.Minute)
+
 	log.Printf("Listening for HTTP requests on port %d", port)
 	go runHTTPServer(ctx, port, healthchecker, tokenHandler)
 
 	<-sigchan
+	quitRefresher <- true
 
 	err = tokenHandler.Stop()
 	if err != nil {
 		log.Printf("Unable to stop TokenHandler")
 	}
+
 	log.Printf("Exiting Cleanly")
+}
+
+func startRefresher(cf string, timerDuration time.Duration) {
+	timer := time.NewTimer(timerDuration)
+	for {
+		select {
+		case <-quitRefresher:
+			timer.Stop()
+			log.Printf("Config refresher stopping")
+			return
+		case <-timer.C:
+			log.Printf("Refreshing config and tokens")
+			newConfig, err := LoadConfig(cf)
+			if err != nil {
+				log.Printf("Unable to refresh config file: %v", err)
+				timer.Reset(timerDuration)
+				break
+			}
+			timerDuration := time.Duration(newConfig.CheckIntervalMinutes) * time.Minute
+			err = tokenHandler.Reconfig(newConfig.Tokens)
+			if err != nil {
+				log.Printf("Unable to refresh tokens: %v", err)
+				timer.Reset(timerDuration)
+				break
+			}
+			timer.Reset(timerDuration)
+		}
+	}
 }
