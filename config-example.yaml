@@ -1,0 +1,5 @@
+tokens:
+  - name: token1
+    path: sample-tokens/token1
+  - name: token2
+    path: sample-tokens/token2

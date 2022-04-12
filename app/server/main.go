@@ -35,13 +35,15 @@ import (
 const port uint16 = 1982
 
 var (
-	configFile = flag.String("configFile", "/app/config/stormdriver.yaml", "Configuration file location")
+	configFile = flag.String("configFile", "/app/config/arcade-token-machine.yaml", "Configuration file location")
 
 	// eg, http://localhost:14268/api/traces
 	jaegerEndpoint = flag.String("jaeger-endpoint", "", "Jaeger collector endpoint")
 
 	healthchecker = health.MakeHealth()
 	tracer        trace.Tracer
+	tokenHandler  *TokenHandler
+	config        *Config
 )
 
 func getEnvar(name string, defaultValue string) string {
@@ -90,15 +92,42 @@ func main() {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*5)
 		defer cancel()
 		if err := tracerProvider.Shutdown(ctx); err != nil {
-			log.Fatal(err)
+			if *jaegerEndpoint != "" {
+				log.Printf("shutting down tracer: %v", err)
+			}
 		}
 	}(ctx)
 
 	go healthchecker.RunCheckers(15)
 
+	log.Printf("Loading config from %s", *configFile)
+	config, err = LoadConfig(*configFile)
+	if err != nil {
+		log.Fatalf("Unable to load config: %v", err)
+	}
+
+	log.Printf("Config: %#v", config)
+
+	log.Printf("Starting TokenHandler")
+	tokenHandler = MakeTokenHandler()
+	err = tokenHandler.Start()
+	if err != nil {
+		log.Fatalf("Unable to start TokenHandler: %v", err)
+	}
+	log.Printf("Loading Tokens")
+	err = tokenHandler.Reconfig(config.Tokens)
+	if err != nil {
+		log.Fatalf("Unable to configure TokenHandler: %v", err)
+	}
+
 	log.Printf("Listening for HTTP requests on port %d", port)
-	go runHTTPServer(ctx, port, healthchecker)
+	go runHTTPServer(ctx, port, healthchecker, tokenHandler)
 
 	<-sigchan
+
+	err = tokenHandler.Stop()
+	if err != nil {
+		log.Printf("Unable to stop TokenHandler")
+	}
 	log.Printf("Exiting Cleanly")
 }

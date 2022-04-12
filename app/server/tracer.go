@@ -35,7 +35,7 @@ func newTracerProvider(url string, githash string) (*tracesdk.TracerProvider, er
 	opts := []tracesdk.TracerProviderOption{
 		tracesdk.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("stormdriver"),
+			semconv.ServiceNameKey.String("arcade-token-machine"),
 			semconv.ServiceVersionKey.String(githash),
 		)),
 		tracesdk.WithSampler(tracesdk.AlwaysSample()),

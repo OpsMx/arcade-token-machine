@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -32,28 +33,48 @@ import (
 )
 
 type srv struct {
-	listenPort uint16
+	listenPort   uint16
+	tokenHandler *TokenHandler
 }
 
-func (*srv) tokenRequest() http.HandlerFunc {
+func (s *srv) tokenRequest() http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("content-type", "application/json")
 		queries := req.URL.Query()
-		provider := queries.Get("provider")
-		if provider != "multipass" {
-			http.Error(w, "provider must be 'multipass'", http.StatusUnprocessableEntity)
+
+		providerQuery := queries.Get("provider")
+		if providerQuery == "" {
+			http.Error(w, "provider query option not set", http.StatusUnprocessableEntity)
 			return
 		}
-		providerContext := queries.Get("providerContext")
-		// Get an actual token, for now...  echo the ENVAR...
+
+		queryParts := strings.SplitN(providerQuery, ".", 2)
+		if len(queryParts) != 2 {
+			http.Error(w, "provider format is wrong, should be 'filesystem.tokenname", http.StatusUnprocessableEntity)
+			return
+		}
+		provider := queryParts[0]
+		providerContext := queryParts[1]
+		if provider != "filesystem" {
+			http.Error(w, "provider must be 'filesystem.tokenname'", http.StatusUnprocessableEntity)
+			return
+		}
+		if providerContext == "" {
+			http.Error(w, "provider format is wrong, should be 'filesystem.tokenname", http.StatusUnprocessableEntity)
+			return
+		}
+
 		var ret struct {
 			Token    string
-			Context  string
 			Provider string
 		}
-		ret.Token = getEnvar("KUBERNETES_TOKEN", "KUBERNETES_TOKEN-envar-not-set")
-		ret.Context = providerContext
-		ret.Provider = provider
+		token, err := s.tokenHandler.GetToken(providerContext)
+		if err != nil {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		ret.Token = token
+		ret.Provider = providerQuery
 
 		json, err := json.Marshal(ret)
 		if err != nil {
@@ -69,9 +90,10 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	return handlers.LoggingHandler(os.Stdout, next)
 }
 
-func runHTTPServer(ctx context.Context, listenPort uint16, healthchecker *health.Health) {
+func runHTTPServer(ctx context.Context, listenPort uint16, healthchecker *health.Health, tokenHandler *TokenHandler) {
 	s := &srv{
-		listenPort: listenPort,
+		listenPort:   listenPort,
+		tokenHandler: tokenHandler,
 	}
 
 	r := mux.NewRouter()
