@@ -71,8 +71,8 @@ buildtime/%.ts:: ${all_deps} Dockerfile
 	@$(eval GIT_BRANCH=$(shell git branch --show-current))
 	@$(eval GIT_HASH=$(shell git rev-parse ${GIT_BRANCH}))
 	${BUILDX} \
-		--tag ${IMAGE_PREFIX}arcade-token-machine-$(patsubst %-ma.ts,%,$(@F)):latest \
-		--tag ${IMAGE_PREFIX}arcade-token-machine-$(patsubst %-ma.ts,%,$(@F)):v${now} \
+		--tag ${IMAGE_PREFIX}arcade-token-machine-$(patsubst %.ts,%,$(@F)):latest \
+		--tag ${IMAGE_PREFIX}arcade-token-machine-$(patsubst %.ts,%,$(@F)):v${now} \
 		--target $(patsubst %.ts,%,$(@F))-image \
 		--build-arg GIT_HASH=${GIT_HASH} \
 		--build-arg GIT_BRANCH=${GIT_BRANCH} \
