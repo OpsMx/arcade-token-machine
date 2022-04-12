@@ -38,6 +38,7 @@ type tokenRequest struct {
 	responseChan chan tokenResponse
 }
 
+// TokenHandler is the magic token handler.
 type TokenHandler struct {
 	tokens      map[string]string
 	tokenNames  []string
@@ -47,6 +48,7 @@ type TokenHandler struct {
 	running     bool
 }
 
+// MakeTokenHandler will return a new TokenHandler, ready to have Start() called.
 func MakeTokenHandler() *TokenHandler {
 	return &TokenHandler{
 		tokens:      make(map[string]string),
@@ -89,6 +91,7 @@ func (th *TokenHandler) Reconfig(config []TokenConfig) error {
 	return nil
 }
 
+// UpdateToken will update the contents of the token with new data.
 func (th *TokenHandler) UpdateToken(name string, token string) error {
 	if !th.running {
 		return fmt.Errorf("TokenHandler not running")
@@ -101,6 +104,7 @@ func (th *TokenHandler) UpdateToken(name string, token string) error {
 	return nil
 }
 
+// DeleteToken will safely delete a token that is no longer needed.
 func (th *TokenHandler) DeleteToken(name string) error {
 	if !th.running {
 		return fmt.Errorf("TokenHandler not running")
@@ -109,6 +113,7 @@ func (th *TokenHandler) DeleteToken(name string) error {
 	return nil
 }
 
+// GetToken will return the found token, or an error if not present.
 func (th *TokenHandler) GetToken(name string) (string, error) {
 	if !th.running {
 		return "", fmt.Errorf("TokenHandler not running")

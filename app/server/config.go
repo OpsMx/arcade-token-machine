@@ -22,16 +22,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config holds overall application config.
 type Config struct {
 	CheckIntervalMinutes int           `yaml:"checkIntervalMinutes,omitempty" json:"checkIntervalMinutes,omitempty"`
 	Tokens               []TokenConfig `yaml:"tokens,omitempty" json:"tokens,omitempty"`
 }
 
+// TokenConfig holds the configuration for a specific token.
 type TokenConfig struct {
 	Name string `yaml:"name,omitempty" json:"name,omitempty"`
 	Path string `yaml:"path,omitempty" json:"path,omitempty"`
 }
 
+// LoadConfig will load the provided config file.
 func LoadConfig(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
