@@ -1,3 +1,4 @@
+checkIntervalMinutes: 1
 tokens:
   - name: token1
     path: sample-tokens/token1
